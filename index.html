@@ -523,38 +523,57 @@ function renderSimulateur() {
   // Panneau taux
   var rateRows = ''
   SECTEURS.forEach(function(s){
-    var cap = TAUX_CUSTOM[s.id] > BCEAO_CAP ? '<span class="rate-cap">⚠ D\xe9passe plafond!</span>' : ''
+    var cap = TAUX_CUSTOM[s.id] > BCEAO_CAP ? '<span class="rate-cap">&#9888; Dépasse plafond!</span>' : ''
     rateRows += '<div class="rate-row"><span class="rate-name">'+s.icon+' '+esc(s.name)+'</span>'
-    rateRows += '<input type="number" class="rate-input" id="rate_'+s.id+'" value="'+TAUX_CUSTOM[s.id]+'" min="1" max="24" step="0.5" oninput="updateRate(\''+s.id+'\')">'
+    rateRows += '<input type="number" class="rate-input" id="rate_'+s.id+'" value="'+TAUX_CUSTOM[s.id]+'" min="1" max="24" step="0.5" oninput="updateRate(''+s.id+'')">'
     rateRows += '<span class="rate-unit">% / an</span>'+cap+'</div>'
   })
 
-  var html = '<div class="page-header"><h2 class="section-title">&#129518; Simulateur de cr\xe9dit</h2><p class="section-sub">Agriculture et activit\xe9s g\xe9n\xe9ratrices de revenus — 22 secteurs</p></div>'
-  html += '<div class="warn-banner">&#128204; <strong>Outil d\'aide \xe0 la d\xe9cision</strong> — R\xe9sultats indicatifs. Validation obligatoire par un agent de cr\xe9dit. Taux soumis au plafond BCEAO de <strong>24% / an</strong> (taux d\'usure UEMOA).</div>'
+  var html = '<div class="page-header"><h2 class="section-title">&#129518; Simulateur de crédit</h2><p class="section-sub">Agriculture et activités génératrices de revenus — 22 secteurs</p></div>'
+  html += '<div class="warn-banner">&#128204; <strong>Saisie libre par l'agent</strong> — L'agent fixe librement le montant accordé et choisit la méthode de calcul. Plafond BCEAO&nbsp;: <strong>24% / an</strong>.</div>'
 
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">'
 
   // ── Formulaire
   html += '<div><div class="chart-card" style="margin-bottom:16px">'
-  html += '<div class="chart-title">&#128203; Secteur d\'activit\xe9</div>'
-  html += simField('Secteur','<select id="simSecteur" class="filter-select" style="width:100%;padding:11px" onchange="onSecteurChange()">'+selectOpts+'</select>')
+  html += '<div class="chart-title">&#128203; Paramètres du crédit</div>'
+  html += simField('Secteur d'activité','<select id="simSecteur" class="filter-select" style="width:100%;padding:11px" onchange="onSecteurChange()">'+selectOpts+'</select>')
   html += '<div id="simTypeInfo" style="margin-bottom:12px"></div>'
+
+  // Méthode de calcul (libre)
+  html += simField('Méthode de calcul',
+    '<select id="simMethode" class="filter-select" style="width:100%;padding:11px;font-size:13px" onchange="calcSim()">'
+    + '<option value="degressif">&#128197; Dégressif — intérêts sur solde restant (BCEAO)</option>'
+    + '<option value="flat">&#128203; Flat — intérêts sur capital initial (terrain)</option>'
+    + '</select>')
+
+  // Formulaire agricole
   html += '<div id="simFormAgri" style="display:none">'
   html += simField('Score agricole CultivaTech (0–100)','<input type="range" id="simScore" min="0" max="100" value="60" oninput="calcSim()" style="width:100%;accent-color:var(--vert2)"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>0 (Insuffisant)</span><span id="simScoreVal" style="font-weight:700;color:var(--vert);font-size:15px">60</span><span>100 (Excellent)</span></div>')
-  html += simField('Surface cultiv\xe9e (hectares)','<input type="number" id="simSurface" min="0.5" max="100" step="0.5" value="2" oninput="calcSim()" class="search-input" style="width:100%;padding:10px">')
+  html += simField('Surface cultivée (hectares)','<input type="number" id="simSurface" min="0.5" max="100" step="0.5" value="2" oninput="calcSim()" class="search-input" style="width:100%;padding:10px">')
+  html += '<div id="simMontantIndicatif" style="background:#EBF5EB;border:1px solid #A8D5A8;border-radius:9px;padding:10px 14px;font-size:12px;color:#1B5E20;margin-bottom:14px;display:none">&#128161; Montant indicatif modèle : <strong id="simIndVal">—</strong> FCFA — <em style="font-weight:400;opacity:.75">modifiable ci-dessous</em></div>'
+  html += simField('Montant accordé par l'agent (FCFA)','<input type="number" id="simMontantFinal" min="5000" step="5000" placeholder="Saisir le montant accordé…" oninput="this.dataset.manual='1';calcSim()" class="search-input" style="width:100%;padding:10px;font-size:14px;font-weight:600">')
+  html += simField('Durée du crédit (mois)','<input type="number" id="simDureeAgri" min="1" max="60" value="8" oninput="calcSim()" class="search-input" style="width:100%;padding:10px">')
   html += '</div>'
+
+  // Formulaire non-agricole
   html += '<div id="simFormNonAgri" style="display:none">'
-  html += simField('Montant sollicit\xe9 (FCFA)','<input type="number" id="simMontant" min="50000" step="5000" value="500000" oninput="calcSim()" class="search-input" style="width:100%;padding:10px">')
-  html += simField('Dur\xe9e souhait\xe9e (mois)','<input type="number" id="simDuree" min="1" max="60" value="12" oninput="calcSim()" class="search-input" style="width:100%;padding:10px">')
+  html += simField('Montant accordé par l'agent (FCFA)','<input type="number" id="simMontant" min="5000" step="5000" value="500000" oninput="calcSim()" class="search-input" style="width:100%;padding:10px;font-size:14px;font-weight:600">')
+  html += simField('Durée du crédit (mois)','<input type="number" id="simDuree" min="1" max="60" value="12" oninput="calcSim()" class="search-input" style="width:100%;padding:10px">')
   html += '</div>'
-  html += simField('Historique de remboursement','<select id="simHisto" class="filter-select" style="width:100%;padding:10px" onchange="calcSim()"><option value="1.25">Excellent — jamais de retard</option><option value="1.0" selected>Bon — quelques retards mineurs</option><option value="0.75">Moyen — retards fr\xe9quents</option><option value="0.5">Insuffisant — incidents de paiement</option></select>')
-  html += simField('R\xe9gion (risque s\xe9curitaire)','<select id="simRegion" class="filter-select" style="width:100%;padding:10px" onchange="calcSim()"><option value="1.0">Zone stable</option><option value="0.9">Centre-Nord (surveillance)</option><option value="0.75">Nord • Boucle du Mouhoun • Centre-Est • Sud-Ouest</option><option value="0.6">Sahel • Est (zone critique)</option></select>')
+
+  // Contexte décisionnel (commun)
+  html += '<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">'
+  html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Contexte décisionnel</div>'
+  html += simField('Historique de remboursement','<select id="simHisto" class="filter-select" style="width:100%;padding:10px" onchange="calcSim()"><option value="1.25">Excellent — jamais de retard</option><option value="1.0" selected>Bon — quelques retards mineurs</option><option value="0.75">Moyen — retards fréquents</option><option value="0.5">Insuffisant — incidents de paiement</option></select>')
+  html += simField('Région (risque sécuritaire)','<select id="simRegion" class="filter-select" style="width:100%;padding:10px" onchange="calcSim()"><option value="1.0">Zone stable</option><option value="0.9">Centre-Nord (surveillance)</option><option value="0.75">Nord • Boucle du Mouhoun • Centre-Est • Sud-Ouest</option><option value="0.6">Sahel • Est (zone critique)</option></select>')
   html += '</div>'
+  html += '</div>' // end chart-card
 
   // ── Panneau taux
   html += '<div class="chart-card" style="margin-bottom:16px">'
-  html += '<div class="chart-title">&#9881;&#65039; Param\xe8tres des taux d\'int\xe9r\xeat</div>'
-  html += '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">Ajustez les taux selon votre politique interne. Plafond BCEAO : <strong>24% / an</strong>. Les taux utilis\xe9s dans la simulation sont affich\xe9s ci-dessous.</div>'
+  html += '<div class="chart-title">&#9881;&#65039; Paramètres des taux d'intérêt</div>'
+  html += '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">Ajustez les taux selon votre politique interne. Plafond BCEAO : <strong>24% / an</strong>. Les taux utilisés dans la simulation sont affichés ci-dessous.</div>'
   html += '<button class="rate-panel-toggle" onclick="toggleRatePanel()">&#128200; Afficher / Modifier tous les taux <span id="ratePanelChevron">&#9660;</span></button>'
   html += '<div id="ratePanelContent" style="display:none;margin-top:12px;max-height:320px;overflow-y:auto">'+rateRows+'</div>'
   html += '</div>'
@@ -564,10 +583,10 @@ function renderSimulateur() {
   // ── Résultats
   html += '<div>'
   html += '<div class="chart-card" id="simResultCard" style="margin-bottom:16px;background:linear-gradient(135deg,#F4FAF4,#EAF5EA);border:2px solid var(--vert-pale)">'
-  html += '<div class="chart-title">&#128202; R\xe9sultat de l\'analyse</div>'
+  html += '<div class="chart-title">&#128202; Résultat de l'analyse</div>'
   html += '<div id="simResultContent"></div></div>'
   html += '<div class="chart-card" id="simPlanCard">'
-  html += '<div class="chart-title">&#128197; \xc9ch\xe9ancier de remboursement</div>'
+  html += '<div class="chart-title">&#128197; Échéancier de remboursement</div>'
   html += '<div id="simPlanContent"></div></div>'
   html += '</div>'
 
@@ -576,6 +595,7 @@ function renderSimulateur() {
   document.getElementById('mainContent').innerHTML = html
   onSecteurChange()
 }
+
 
 function simField(label, content) {
   return '<div style="margin-bottom:16px"><label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;display:block;margin-bottom:7px">'+label+'</label>'+content+'</div>'
@@ -604,36 +624,55 @@ function onSecteurChange() {
   var id = (document.getElementById('simSecteur')||{value:'mil'}).value
   var sec = SECTEURS.find(function(s){return s.id===id})||SECTEURS[0]
   var isAgri = sec.type === 'agri'
-  document.getElementById('simFormAgri').style.display  = isAgri ? 'block' : 'none'
+  document.getElementById('simFormAgri').style.display   = isAgri ? 'block' : 'none'
   document.getElementById('simFormNonAgri').style.display = isAgri ? 'none' : 'block'
+  // Réinitialiser montant et marqueur manuel au changement de secteur
+  var mf = document.getElementById('simMontantFinal')
+  if (mf) { mf.value = ''; mf.dataset.manual = '0' }
+  // Défaut durée
+  var da = document.getElementById('simDureeAgri'); if (da) da.value = sec.duree || 8
+  var dn = document.getElementById('simDuree');     if (dn) dn.value = sec.duree || 12
   var info = document.getElementById('simTypeInfo')
   if (info) {
     if (isAgri) {
-      info.innerHTML = '<div class="info-banner" style="font-size:12px;margin-bottom:0">&#127807; <strong>Secteur agricole</strong> — Montant bas\xe9 sur la surface, le score CultivaTech et l\'historique. Taux actuel : <strong>'+TAUX_CUSTOM[id]+'% / an</strong></div>'
+      info.innerHTML = '<div class="info-banner" style="font-size:12px;margin-bottom:0">&#127807; <strong>Secteur agricole</strong> — Le modèle suggère un montant indicatif (score × surface). L'agent fixe librement le montant final. Taux actuel : <strong>'+TAUX_CUSTOM[id]+'% / an</strong></div>'
     } else {
-      info.innerHTML = '<div style="background:#EEF4FF;border:1px solid #BBCEF8;border-radius:10px;padding:10px 14px;font-size:12px;color:#1a3a6e"><strong>&#127981; Activit\xe9 non agricole</strong> — '+esc(sec.desc||'')+'<br>Montant bas\xe9 sur le montant sollicit\xe9 et l\'historique (sans score CultivaTech). Plafond secteur : <strong>'+Number(sec.plafond).toLocaleString('fr-FR')+' FCFA</strong>. Taux actuel : <strong>'+TAUX_CUSTOM[id]+'% / an</strong></div>'
+      info.innerHTML = '<div style="background:#EEF4FF;border:1px solid #BBCEF8;border-radius:10px;padding:10px 14px;font-size:12px;color:#1a3a6e"><strong>&#127981; Activité non agricole</strong> — '+esc(sec.desc||'')+'<br>L'agent saisit librement le montant accordé. Plafond secteur : <strong>'+Number(sec.plafond).toLocaleString('fr-FR')+' FCFA</strong>. Taux actuel : <strong>'+TAUX_CUSTOM[id]+'% / an</strong></div>'
     }
   }
   calcSim()
 }
 
+// Calcul du TEG réel (taux effectif global annuel) par dichotomie sur la VAN
+function computeTEG(principal, mensualite, duree) {
+  if (!principal||!mensualite||!duree||mensualite<=0) return 0
+  var lo=0.000001, hi=10, r
+  for(var i=0;i<60;i++){
+    r=(lo+hi)/2
+    var pv = r>0 ? mensualite*(1-Math.pow(1+r,-duree))/r : mensualite*duree
+    if(pv>principal) lo=r; else hi=r
+  }
+  return Math.round(r*12*10000)/100  // retourne % avec 2 décimales
+}
+
 function calcSim() {
-  var secId  = (document.getElementById('simSecteur')||{value:'mil'}).value
-  var sec    = SECTEURS.find(function(s){return s.id===secId})||SECTEURS[0]
-  var isAgri = sec.type === 'agri'
-  var histo  = parseFloat((document.getElementById('simHisto')||{value:1}).value)||1
-  var regM   = parseFloat((document.getElementById('simRegion')||{value:1}).value)||1
-  var taux   = Math.min(TAUX_CUSTOM[secId]||sec.taux, BCEAO_CAP)
-  var rc     = document.getElementById('simResultContent')
-  var pc     = document.getElementById('simPlanContent')
+  var secId   = (document.getElementById('simSecteur')||{value:'mil'}).value
+  var sec     = SECTEURS.find(function(s){return s.id===secId})||SECTEURS[0]
+  var isAgri  = sec.type === 'agri'
+  var methode = (document.getElementById('simMethode')||{value:'degressif'}).value
+  var histo   = parseFloat((document.getElementById('simHisto')||{value:1}).value)||1
+  var regM    = parseFloat((document.getElementById('simRegion')||{value:1}).value)||1
+  var taux    = Math.min(TAUX_CUSTOM[secId]||sec.taux, BCEAO_CAP)
+  var rc      = document.getElementById('simResultContent')
+  var pc      = document.getElementById('simPlanContent')
   if (!rc) return
 
   // Mise à jour info taux en temps réel
   var info = document.getElementById('simTypeInfo')
-  if (info && isAgri) info.innerHTML = '<div class="info-banner" style="font-size:12px;margin-bottom:0">&#127807; <strong>Secteur agricole</strong> — Montant bas\xe9 sur la surface, le score CultivaTech et l\'historique. Taux actuel : <strong>'+taux+'% / an</strong></div>'
-  else if (info && !isAgri) info.innerHTML = '<div style="background:#EEF4FF;border:1px solid #BBCEF8;border-radius:10px;padding:10px 14px;font-size:12px;color:#1a3a6e"><strong>&#127981; Activit\xe9 non agricole</strong> — '+esc(sec.desc||'')+'<br>Montant bas\xe9 sur le montant sollicit\xe9 et l\'historique. Plafond : <strong>'+Number(sec.plafond).toLocaleString('fr-FR')+' FCFA</strong>. Taux actuel : <strong>'+taux+'% / an</strong></div>'
+  if (info && isAgri) info.innerHTML = '<div class="info-banner" style="font-size:12px;margin-bottom:0">&#127807; <strong>Secteur agricole</strong> — Montant indicatif basé sur score × surface. L'agent fixe le montant final. Taux actuel : <strong>'+taux+'% / an</strong></div>'
+  else if (info && !isAgri) info.innerHTML = '<div style="background:#EEF4FF;border:1px solid #BBCEF8;border-radius:10px;padding:10px 14px;font-size:12px;color:#1a3a6e"><strong>&#127981; Activité non agricole</strong> — '+esc(sec.desc||'')+'<br>Montant saisi librement par l'agent. Plafond : <strong>'+Number(sec.plafond).toLocaleString('fr-FR')+' FCFA</strong>. Taux actuel : <strong>'+taux+'% / an</strong></div>'
 
-  var montant, duree, eligible = true, eligPartiel = false
+  var montant, duree, eligible=true, eligPartiel=false
 
   if (isAgri) {
     var score   = parseInt((document.getElementById('simScore')||{value:60}).value)||0
@@ -642,66 +681,119 @@ function calcSim() {
     eligible    = score >= 61
     eligPartiel = score >= 41 && score < 61
     if (!eligible && !eligPartiel) {
-      rc.innerHTML='<div style="background:#FDECEA;border-radius:10px;padding:16px"><strong style="color:#922B21">&#10060; Score insuffisant ('+score+'/100)</strong><br><span style="font-size:12px;color:#922B21;margin-top:6px;display:block">Score minimum requis : 41/100. Recommander un programme de renforcement avant r\xe9\xe9valuation dans 6 mois.</span></div>'
+      rc.innerHTML='<div style="background:#FDECEA;border-radius:10px;padding:16px"><strong style="color:#922B21">&#10060; Score insuffisant ('+score+'/100)</strong><br><span style="font-size:12px;color:#922B21;margin-top:6px;display:block">Score minimum requis : 41/100. Recommander un programme de renforcement avant réévaluation dans 6 mois.</span></div>'
       if(pc) pc.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);">—</div>'
       return
     }
+    // Montant indicatif (suggestion modèle)
     var scoreMulti = 0.4 + (score/100)*0.9
-    montant = Math.round(sec.basePha * surface * scoreMulti * histo * regM / 5000)*5000
-    duree   = sec.duree
+    var indicatif  = Math.round(sec.basePha * surface * scoreMulti * histo * regM / 5000)*5000
+    // Afficher la suggestion
+    var indDiv = document.getElementById('simMontantIndicatif')
+    var indVal = document.getElementById('simIndVal')
+    if (indDiv) indDiv.style.display = 'block'
+    if (indVal) indVal.textContent   = Number(indicatif).toLocaleString('fr-FR')
+    // Pré-remplir si l'agent n'a pas encore saisi manuellement
+    var mfEl = document.getElementById('simMontantFinal')
+    if (mfEl && (!mfEl.dataset.manual || mfEl.dataset.manual==='0')) mfEl.value = indicatif
+    montant = Math.round((parseFloat(mfEl&&mfEl.value)||indicatif)/5000)*5000
+    duree   = Math.max(1, Math.min(parseInt((document.getElementById('simDureeAgri')||{value:sec.duree}).value)||sec.duree, 60))
   } else {
-    var mntReq = parseFloat((document.getElementById('simMontant')||{value:500000}).value)||500000
-    duree      = parseInt((document.getElementById('simDuree')||{value:12}).value)||12
-    duree      = Math.max(1, Math.min(duree, 60))
-    montant    = Math.round(Math.min(mntReq * histo * regM, sec.plafond) / 5000)*5000
-    montant    = Math.max(montant, 0)
+    montant = Math.round((parseFloat((document.getElementById('simMontant')||{value:500000}).value)||500000)/5000)*5000
+    duree   = Math.max(1, Math.min(parseInt((document.getElementById('simDuree')||{value:12}).value)||12, 60))
   }
 
-  var tauxM      = taux/12/100
-  var mensualite = tauxM>0 ? Math.round(montant*tauxM*Math.pow(1+tauxM,duree)/(Math.pow(1+tauxM,duree)-1)/1000)*1000 : Math.round(montant/duree/1000)*1000
-  var totalR     = mensualite*duree
-  var interets   = totalR-montant
-  var mntMin     = Math.round(montant*0.80/5000)*5000
-  var mntMax     = Math.round(Math.min(montant*1.15,(sec.plafond||montant*1.5))/5000)*5000
+  if (!montant || montant <= 0) {
+    rc.innerHTML='<div style="background:#FFF3E0;border-radius:10px;padding:14px;font-size:13px;color:#7D4E00">&#9888; Saisir un montant accordé pour lancer la simulation.</div>'
+    if(pc) pc.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);">—</div>'
+    return
+  }
+
+  var tauxM = taux/12/100
+  var mensualite, totalR, interets, teg
+
+  if (methode === 'flat') {
+    // Intérêts calculés sur le capital initial (méthode terrain BF)
+    var intTotal = Math.round(montant * (taux/100) * (duree/12))
+    totalR     = montant + intTotal
+    mensualite = Math.round(totalR / duree / 100) * 100
+    interets   = mensualite * duree - montant
+    teg        = computeTEG(montant, mensualite, duree)
+  } else {
+    // Dégressif PMT (BCEAO)
+    mensualite = tauxM>0
+      ? Math.round(montant*tauxM*Math.pow(1+tauxM,duree)/(Math.pow(1+tauxM,duree)-1)/100)*100
+      : Math.round(montant/duree/100)*100
+    totalR   = mensualite*duree
+    interets = totalR-montant
+    teg      = taux
+  }
+
+  // Badge méthode
+  var methodeBadge = methode==='flat'
+    ? '<span style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700">FLAT</span>'
+    : '<span style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700">DÉGRESSIF</span>'
+
+  // Alerte TEG pour méthode flat
+  var tegHtml = ''
+  if (methode==='flat' && teg>0) {
+    var overCap = teg > BCEAO_CAP
+    tegHtml = '<div style="background:'+(overCap?'#FDECEA':'#FFF8E1')+';border:1px solid '+(overCap?'#F5C6C6':'#FFD54F')+';border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:12px;color:'+(overCap?'#922B21':'#7D6608')+'">'
+      + (overCap?'&#9888;&#65039; <strong>TEG réel : '+teg+'% / an — DÉPASSE LE PLAFOND BCEAO (24%)</strong>':'&#8505;&#65039; TEG réel : <strong>'+teg+'% / an</strong> — supérieur au taux nominal ('+taux+'%) en méthode flat')
+      + '</div>'
+  }
 
   var statusHtml = ''
   if (isAgri) {
     statusHtml = eligible
-      ? '<div style="background:#E8F5E9;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#1B5E20">&#9989; \xc9LIGIBLE AU CR\xc9DIT — score '+(document.getElementById('simScore')||{value:60}).value+'/100</strong></div>'
-      : '<div style="background:#FFF8E1;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#7D6608">&#9888; \xc9LIGIBLE PARTIEL — accord conditionnel</strong><br><span style="font-size:11px;color:#7D6608">Suivi renforc\xe9 recommand\xe9 — montant plafonn\xe9</span></div>'
+      ? '<div style="background:#E8F5E9;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#1B5E20">&#9989; ÉLIGIBLE — score '+(document.getElementById('simScore')||{value:60}).value+'/100</strong></div>'
+      : '<div style="background:#FFF8E1;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#7D6608">&#9888; ÉLIGIBLE PARTIEL — accord conditionnel</strong><br><span style="font-size:11px;color:#7D6608">Suivi renforcé recommandé — montant à valider</span></div>'
   } else {
-    statusHtml = histo>=1
-      ? '<div style="background:#E3F2FD;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#0D47A1">&#128309; ANALYSE COMPL\xc9T\xc9E — montant recommand\xe9 ci-dessous</strong></div>'
-      : '<div style="background:#FFF8E1;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#7D6608">&#9888; HISTORIQUE INSUFFISANT — montant r\xe9duit</strong><br><span style="font-size:11px;color:#7D6608">Renforcer le suivi terrain avant d\xe9boursement.</span></div>'
+    statusHtml = '<div style="background:#E3F2FD;border-radius:10px;padding:10px 14px;margin-bottom:14px"><strong style="color:#0D47A1">&#128309; ANALYSE COMPLÉTÉE — montant saisi par l'agent</strong></div>'
   }
 
-  rc.innerHTML = statusHtml
+  rc.innerHTML = statusHtml + tegHtml
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
-    + '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">Montant recommand\xe9</div><div class="sim-montant">'+Number(montant).toLocaleString('fr-FR')+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px">FCFA &nbsp;(fourchette : '+Number(mntMin).toLocaleString('fr-FR')+'–'+Number(mntMax).toLocaleString('fr-FR')+')</div></div>'
-    + '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">Mensualit\xe9 estim\xe9e</div><div class="sim-mensualite">'+Number(mensualite).toLocaleString('fr-FR')+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px">FCFA / mois sur '+duree+' mois</div></div>'
+    + '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">Montant accordé</div><div class="sim-montant">'+Number(montant).toLocaleString('fr-FR')+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px">FCFA — '+duree+' mois</div></div>'
+    + '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">Mensualité</div><div class="sim-mensualite">'+Number(mensualite).toLocaleString('fr-FR')+'</div><div style="font-size:10px;color:var(--muted);margin-top:4px">FCFA / mois</div></div>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;text-align:center;padding-top:12px;border-top:1px solid var(--border)">'
-    + '<div><div style="font-size:10px;color:var(--muted)">Total rembours\xe9</div><div style="font-weight:700;font-family:\'DM Mono\',monospace;font-size:12px">'+Number(totalR).toLocaleString('fr-FR')+' F</div></div>'
-    + '<div><div style="font-size:10px;color:var(--muted)">Co\xfbt cr\xe9dit</div><div style="font-weight:700;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--amber)">'+Number(interets).toLocaleString('fr-FR')+' F</div></div>'
-    + '<div><div style="font-size:10px;color:var(--muted)">Taux appliqu\xe9</div><div style="font-weight:700;font-family:\'DM Mono\',monospace;font-size:12px;color:var(--vert)">'+taux+'% / an</div></div>'
-    + '<div><div style="font-size:10px;color:var(--muted)">Secteur</div><div style="font-weight:700;font-size:13px">'+sec.icon+'</div></div>'
+    + '<div><div style="font-size:10px;color:var(--muted)">Total remboursé</div><div style="font-weight:700;font-family:'DM Mono',monospace;font-size:12px">'+Number(totalR).toLocaleString('fr-FR')+' F</div></div>'
+    + '<div><div style="font-size:10px;color:var(--muted)">Coût crédit</div><div style="font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--amber)">'+Number(interets).toLocaleString('fr-FR')+' F</div></div>'
+    + '<div><div style="font-size:10px;color:var(--muted)">Taux nominal</div><div style="font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--vert)">'+taux+'% / an</div></div>'
+    + '<div><div style="font-size:10px;color:var(--muted)">Méthode</div><div style="margin-top:3px">'+methodeBadge+'</div></div>'
     + '</div>'
 
   // Échéancier
-  var now=new Date(),solde=montant,rows=''
+  var now=new Date(), solde=montant, rows=''
   var showMonths=Math.min(duree,10)
+  var intFlatM = methode==='flat' ? Math.round(montant*tauxM) : 0
   for(var m=0;m<showMonths;m++){
     var dm=new Date(now.getFullYear(),now.getMonth()+m+1,1)
-    var intM=Math.round(solde*tauxM),capM=mensualite-intM
+    var intM, capM
+    if (methode==='flat') {
+      intM = intFlatM   // constant sur capital initial
+      capM = mensualite - intM
+    } else {
+      intM = Math.round(solde*tauxM)
+      capM = mensualite-intM
+    }
     solde=Math.max(0,solde-capM)
     rows+='<tr><td style="padding:6px 10px;font-size:11px;border-top:1px solid #f0f4f0;color:var(--muted)">'+dm.toLocaleDateString('fr-FR',{month:'short',year:'numeric'})+'</td>'
-      +'<td style="padding:6px 10px;font-size:11px;font-family:\'DM Mono\',monospace;text-align:right;border-top:1px solid #f0f4f0">'+Number(mensualite).toLocaleString('fr-FR')+'</td>'
-      +'<td style="padding:6px 10px;font-size:11px;text-align:right;color:var(--amber);font-family:\'DM Mono\',monospace;border-top:1px solid #f0f4f0">'+Number(intM).toLocaleString('fr-FR')+'</td>'
-      +'<td style="padding:6px 10px;font-size:11px;text-align:right;color:var(--muted);font-family:\'DM Mono\',monospace;border-top:1px solid #f0f4f0">'+Number(Math.round(solde/1000)*1000).toLocaleString('fr-FR')+'</td></tr>'
+      +'<td style="padding:6px 10px;font-size:11px;font-family:'DM Mono',monospace;text-align:right;border-top:1px solid #f0f4f0">'+Number(mensualite).toLocaleString('fr-FR')+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;text-align:right;color:var(--amber);font-family:'DM Mono',monospace;border-top:1px solid #f0f4f0">'+Number(intM).toLocaleString('fr-FR')+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;text-align:right;color:var(--muted);font-family:'DM Mono',monospace;border-top:1px solid #f0f4f0">'+Number(Math.round(solde/1000)*1000).toLocaleString('fr-FR')+'</td></tr>'
   }
-  if(duree>showMonths) rows+='<tr><td colspan="4" style="padding:6px 10px;text-align:center;font-size:11px;color:var(--muted);border-top:1px solid #f0f4f0">… '+(duree-showMonths)+' mois suppl\xe9mentaires</td></tr>'
-  if(pc) pc.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr><th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:left">Mois</th><th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:right">Mensualit\xe9 (FCFA)</th><th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:right">Int\xe9r\xeats</th><th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:right">Solde restant</th></tr></thead><tbody>'+rows+'</tbody></table>'
+  if(duree>showMonths) rows+='<tr><td colspan="4" style="padding:6px 10px;text-align:center;font-size:11px;color:var(--muted);border-top:1px solid #f0f4f0">… '+(duree-showMonths)+' mois supplémentaires</td></tr>'
+  var thInt = methode==='flat' ? 'Intérêts (capital initial)' : 'Intérêts (solde restant)'
+  if(pc) pc.innerHTML='<table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +'<th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:left">Mois</th>'
+    +'<th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:right">Mensualité (FCFA)</th>'
+    +'<th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:right">'+thInt+'</th>'
+    +'<th style="background:var(--vert-bg);font-size:10px;color:var(--muted);padding:7px 10px;text-align:right">Solde restant</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table>'
 }
+
 
 // ── PAGINATION ────────────────────────────────────────────────────────────────
 function buildPagination(cid,pages,ctx) {
