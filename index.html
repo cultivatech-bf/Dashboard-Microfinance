@@ -105,6 +105,23 @@
   .table-info{font-size:12px;color:var(--muted)}
   .pagination{display:flex;gap:4px}
   .page-btn{border:1px solid var(--border);border-radius:7px;padding:5px 11px;font-size:12px;cursor:pointer;background:#fff;font-family:'DM Sans',sans-serif;color:var(--text);transition:all .15s}
+  /* RAPPORT PDF (impression) */
+  #reportView{display:none}
+  @media print{
+    #app,#loginScreen{display:none!important}
+    #reportView{display:block!important;font-family:'DM Sans',Arial,sans-serif;color:#17202A;padding:0 8mm}
+    #reportView h1{font-size:22pt;color:#1B4F72;margin-bottom:2mm}
+    #reportView h2{font-size:13pt;color:#1B4F72;margin:8mm 0 3mm;border-bottom:1.5pt solid #2471A3;padding-bottom:1.5mm}
+    #reportView .r-sub{color:#5D6D7E;font-size:10pt;margin-bottom:1mm}
+    #reportView table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:4mm}
+    #reportView th{background:#EAF2F8;color:#1B4F72;text-align:left;padding:2mm 3mm;border:0.5pt solid #D4E6F1}
+    #reportView td{padding:2mm 3mm;border:0.5pt solid #E5E8E8}
+    #reportView .r-kpis{display:flex;flex-wrap:wrap;gap:4mm;margin:4mm 0}
+    #reportView .r-kpi{border:0.75pt solid #D4E6F1;border-radius:2mm;padding:3mm 5mm;min-width:32mm}
+    #reportView .r-kpi b{display:block;font-size:16pt;color:#1B4F72}
+    #reportView .r-kpi span{font-size:8.5pt;color:#5D6D7E}
+    #reportView .r-foot{margin-top:8mm;padding-top:3mm;border-top:0.75pt solid #D4E6F1;font-size:8.5pt;color:#5D6D7E;text-align:center}
+  }
   .page-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600}
   .page-btn:hover:not(.active){border-color:var(--blue);color:var(--blue)}
   .page-btn:disabled{cursor:default;opacity:.4}
@@ -177,6 +194,7 @@
     </div>
     <div class="topbar-right">
       <span id="topbarRegion" class="topbar-region"></span>
+      <button class="refresh-btn" onclick="generateReport()">&#128196; Rapport PDF</button>
       <button class="refresh-btn" onclick="fetchAndRender()">&#8635; Actualiser</button>
       <button class="logout-btn" onclick="logout()">D&#233;connexion</button>
     </div>
@@ -829,6 +847,72 @@ function kpiCard(cls,icon,val,label,suffix) {
   return '<div class="kpi-card '+(cls||'')+'"><div class="kpi-icon">'+icon+'</div><div class="kpi-value">'+display+'</div><div class="kpi-label">'+label+'</div></div>'
 }
 function statutBadge(s) { var m={'\xc9ligible cr\xe9dit':'b-green','\xc0 \xe9valuer':'b-amber','Insuffisant':'b-red'}; return '<span class="badge '+(m[s]||'b-gray')+'">'+esc(s||'Non \xe9valu\xe9')+'</span>' }
+
+// ════ RAPPORT PDF — bilan pour le renouvellement du contrat ════════════════════
+function generateReport() {
+  if (!DATA || !DATA.microfinance) { alert('Chargez d\'abord les donn\xe9es.'); return }
+  var mf    = DATA.microfinance
+  var stats = mf.stats || {}
+  var users = mf.users || []
+  var now   = new Date()
+  var taux  = stats.total ? Math.round((stats.eligible/stats.total)*100) : 0
+
+  // Répartition par statut
+  var byStatut = {}
+  users.forEach(function(u){ var s=u.statut||'Non \xe9valu\xe9'; byStatut[s]=(byStatut[s]||0)+1 })
+  // Répartition par région
+  var byRegion = {}
+  users.forEach(function(u){ var r=u.region||'Non renseign\xe9e'; byRegion[r]=(byRegion[r]||0)+1 })
+
+  var h = '<h1>&#127793; CultivaTech — Rapport Microfinance</h1>'
+  h += '<div class="r-sub">'+esc(USER.organization||USER.name||'Microfinance partenaire')+'</div>'
+  h += '<div class="r-sub">G\xe9n\xe9r\xe9 le '+now.toLocaleDateString('fr-FR',{dateStyle:'long'})+'</div>'
+
+  h += '<h2>Indicateurs cl\xe9s</h2><div class="r-kpis">'
+  h += '<div class="r-kpi"><b>'+(stats.total||0)+'</b><span>Dossiers \xe9valu\xe9s</span></div>'
+  h += '<div class="r-kpi"><b>'+(stats.eligible||0)+'</b><span>\xc9ligibles cr\xe9dit</span></div>'
+  h += '<div class="r-kpi"><b>'+(stats.score_moyen||'—')+'</b><span>Score agricole moyen</span></div>'
+  h += '<div class="r-kpi"><b>'+taux+'%</b><span>Taux d\'\xe9ligibilit\xe9</span></div>'
+  h += '</div>'
+
+  var stKeys = Object.keys(byStatut)
+  if (stKeys.length) {
+    h += '<h2>R\xe9partition par statut d\'\xe9ligibilit\xe9</h2><table><tr><th>Statut</th><th>Dossiers</th><th>Part</th></tr>'
+    stKeys.sort(function(a,b){return byStatut[b]-byStatut[a]}).forEach(function(s){
+      var pct = users.length ? Math.round(byStatut[s]/users.length*100) : 0
+      h += '<tr><td>'+esc(s)+'</td><td>'+byStatut[s]+'</td><td>'+pct+'%</td></tr>'
+    })
+    h += '</table>'
+  }
+
+  var rgKeys = Object.keys(byRegion)
+  if (rgKeys.length) {
+    h += '<h2>Couverture par r\xe9gion</h2><table><tr><th>R\xe9gion</th><th>Dossiers</th></tr>'
+    rgKeys.sort(function(a,b){return byRegion[b]-byRegion[a]}).slice(0,15).forEach(function(r){
+      h += '<tr><td>'+esc(r)+'</td><td>'+byRegion[r]+'</td></tr>'
+    })
+    h += '</table>'
+  }
+
+  // Top dossiers éligibles (meilleurs scores)
+  var elig = users.filter(function(u){return u.statut==='\xc9ligible cr\xe9dit'})
+                  .sort(function(a,b){return (b.score||0)-(a.score||0)}).slice(0,15)
+  if (elig.length) {
+    h += '<h2>Meilleurs profils \xe9ligibles</h2><table><tr><th>Agriculteur</th><th>Score</th><th>R\xe9gion</th><th>Province</th></tr>'
+    elig.forEach(function(u){
+      var nom = ((u.first_name||'')+' '+(u.last_name||'')).trim() || 'Agriculteur'
+      h += '<tr><td>'+esc(nom)+'</td><td>'+(u.score||0)+'</td><td>'+esc(u.region||'—')+'</td><td>'+esc(u.province||'—')+'</td></tr>'
+    })
+    h += '</table>'
+  }
+
+  h += '<div class="r-foot">Rapport g\xe9n\xe9r\xe9 par CultivaTech &middot; scoring agricole &amp; analyse de risque de cr\xe9dit<br>'
+  h += 'SAW-SARL &middot; Burkina Faso &middot; +226 71 91 17 44 &middot; Donn\xe9es bas\xe9es sur le consentement des agriculteurs</div>'
+
+  document.getElementById('reportView').innerHTML = h
+  window.print()
+}
 </script>
+<div id="reportView"></div>
 </body>
 </html>
